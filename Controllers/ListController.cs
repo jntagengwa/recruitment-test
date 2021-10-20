@@ -1,9 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace InterviewTest.Controllers
 {
@@ -11,11 +6,8 @@ namespace InterviewTest.Controllers
     [Route("[controller]")]
     public class ListController : ControllerBase
     {
-        private readonly ILogger<ListController> logger;
-
-        public ListController(ILogger<ListController> logger)
+        public ListController()
         {
-            this.logger = logger;
         }
 
         /*
