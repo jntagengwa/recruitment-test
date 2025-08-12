@@ -1,2 +1,40 @@
-﻿/.vs
-/.vscode
+﻿# Visual Studio
+.vs/
+.vscode/
+
+# .NET build artifacts
+bin/
+obj/
+*.user
+*.suo
+
+# Test results
+TestResults/
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+
+# Node / Vite / Client build artifacts
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+*.lcov
+
+# Environment variables
+.env
+.env.*
+
+# macOS system files
+.DS_Store
+
+# IDE specific
+.idea/
+*.iml
