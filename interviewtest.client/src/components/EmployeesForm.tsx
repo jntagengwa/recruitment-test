@@ -5,6 +5,7 @@ import * as yup from "yup";
 import type { EmployeeCreateDto } from "../dtos/EmployeeCreateDto";
 import type { EmployeeUpdateDto } from "../dtos/EmployeeUpdateDto";
 import type { EmployeeDto } from "../dtos/EmployeeDto";
+import "../styles/metricell.css";
 
 // Schema aligned with server-side DataAnnotations
 const schema = yup.object({
@@ -70,6 +71,7 @@ export default function EmployeesForm({
         <div>Name</div>
         <input
           id="name"
+          className="input"
           placeholder="e.g. Alice"
           {...register("name")}
           aria-invalid={!!errors.name || undefined}
@@ -85,10 +87,11 @@ export default function EmployeesForm({
         <div>Value</div>
         <input
           id="value"
+          className="input"
           type="number"
           min={0}
           step={1}
-          {...register("value")}
+          {...register("value", { valueAsNumber: true })}
           aria-invalid={!!errors.value || undefined}
         />
       </label>
@@ -99,11 +102,20 @@ export default function EmployeesForm({
       )}
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="submit" disabled={isSubmitting}>
+        <button
+          className="btn btn--primary"
+          type="submit"
+          disabled={isSubmitting}
+        >
           {isEdit ? "Save" : "Create"}
         </button>
         {onCancel && (
-          <button type="button" onClick={onCancel} disabled={isSubmitting}>
+          <button
+            className="btn btn--outline"
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+          >
             Cancel
           </button>
         )}

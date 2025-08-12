@@ -71,6 +71,18 @@ Required features:
    - Open the solution in Visual Studio.
    - Restore NuGet packages.
    - Run database migrations if required (the base project includes an SQLite database).
+   - To run database migrations from the command line:
+     ```
+     dotnet ef database update --project InterviewTest.Server
+     ```
+   - To run the ASP.NET backend server from the root directory:
+     ```
+     dotnet run --project InterviewTest.Server
+     ```
+   - To run the server in watch mode (auto-reloads on code changes):
+     ```
+     dotnet watch run --project InterviewTest.Server
+     ```
    - Start the ASP.NET backend server.
    - Access Swagger UI at `/swagger` to view API documentation.
    - The frontend will automatically be built and displayed when you run the solution.

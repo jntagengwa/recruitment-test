@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { EmployeesApi } from "./api/Employees";
 import type { EmployeeDto } from "./dtos/EmployeeDto";
+import type { EmployeeCreateDto } from "./dtos/EmployeeCreateDto";
+import type { EmployeeUpdateDto } from "./dtos/EmployeeUpdateDto";
 import EmployeesTable from "./components/EmployeesTable";
+import EmployeesForm from "./components/EmployeesForm";
 
 function App() {
   const [rows, setRows] = useState<EmployeeDto[]>([]);
@@ -9,10 +12,6 @@ function App() {
   const [error, setError] = useState<string>("");
 
   const [editing, setEditing] = useState<EmployeeDto | null>(null);
-  const [name, setName] = useState("");
-  const [value, setValue] = useState<number>(0);
-  const [formError, setFormError] = useState<string>("");
-
   const [abcSum, setAbcSum] = useState<number | null>(null);
 
   const total = useMemo(
@@ -40,53 +39,31 @@ function App() {
 
   function beginCreate() {
     setEditing(null);
-    setName("");
-    setValue(0);
-    setFormError("");
   }
 
   function beginEdit(row: EmployeeDto) {
     setEditing(row);
-    setName(row.name);
-    setValue(row.value);
-    setFormError("");
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setFormError("");
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setFormError("Name is required");
-      return;
-    }
-    if (trimmed.length > 100) {
-      setFormError("Name cannot exceed 100 characters");
-      return;
-    }
-    if (value < 0 || !Number.isFinite(value)) {
-      setFormError("Value must be a non-negative integer");
-      return;
-    }
-
+  async function handleSave(data: EmployeeCreateDto | EmployeeUpdateDto) {
     try {
+      const payload = { name: data.name.trim(), value: Number(data.value) };
+
       if (editing) {
-        await EmployeesApi.update(editing.id, { name: trimmed, value });
+        // Update existing
+        await EmployeesApi.update(editing.id, payload);
         setRows((prev) =>
-          prev.map((r) =>
-            r.id === editing.id ? { ...r, name: trimmed, value } : r
-          )
+          prev.map((r) => (r.id === editing.id ? { ...r, ...payload } : r))
         );
         setEditing(null);
       } else {
-        const created = await EmployeesApi.create({ name: trimmed, value });
+        // Create new
+        const created = await EmployeesApi.create(payload);
         setRows((prev) => [...prev, created]);
       }
-      setName("");
-      setValue(0);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Save failed";
-      setFormError(msg);
+      alert(msg);
     }
   }
 
@@ -114,39 +91,44 @@ function App() {
 
   return (
     <div
-      style={{
-        maxWidth: 960,
-        margin: "24px auto",
-        padding: 16,
-        fontFamily:
-          "system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif",
-      }}
+      className="app-container"
+      style={{ maxWidth: 960, margin: "24px auto", padding: 16 }}
     >
       <header
+        className="app-header"
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: 12,
+          marginBottom: 24,
         }}
       >
-        <h2 style={{ margin: 0 }}>Metricell Employees</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={beginCreate}>New Employee</button>
-          <button onClick={runRule}>Run Increment Rule</button>
-          <button onClick={refresh}>Refresh</button>
+        <h2 className="app-title" style={{ margin: 0 }}>
+          Metricell Employees
+        </h2>
+        <div className="app-actions" style={{ display: "flex", gap: 12 }}>
+          <button className="btn btn--primary" onClick={beginCreate}>
+            New Employee
+          </button>
+          <button className="btn btn--accent" onClick={runRule}>
+            Run Increment Rule
+          </button>
+          <button className="btn" onClick={refresh}>
+            Refresh
+          </button>
         </div>
       </header>
 
       {abcSum !== null && (
         <div
+          className="notification notification--success"
           style={{
             background: "#eef9f0",
             border: "1px solid #b0e6bd",
             color: "#155724",
-            padding: 10,
+            padding: 12,
             borderRadius: 6,
-            marginBottom: 12,
+            marginBottom: 16,
           }}
         >
           Sum of A/B/C is <strong>{abcSum.toLocaleString()}</strong>
@@ -155,13 +137,14 @@ function App() {
 
       {error && (
         <div
+          className="notification notification--error"
           style={{
             background: "#fdecea",
             border: "1px solid #f5c6cb",
             color: "#721c24",
-            padding: 10,
+            padding: 12,
             borderRadius: 6,
-            marginBottom: 12,
+            marginBottom: 16,
           }}
         >
           {error}
@@ -169,83 +152,58 @@ function App() {
       )}
 
       <section
+        className="content-section"
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(280px, 360px) 1fr",
-          gap: 12,
+          gap: 24,
           alignItems: "start",
-          marginBottom: 16,
         }}
       >
-        <form
-          onSubmit={handleSubmit}
-          className="card"
-          style={{ padding: 12, display: "grid", gap: 8 }}
-        >
-          <h3 style={{ margin: 0 }}>
-            {editing ? `Edit #${editing.id}` : "Add Employee"}
-          </h3>
-
-          <label htmlFor="name">
-            <div>Name</div>
-            <input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Alice"
-            />
-          </label>
-
-          <label htmlFor="value">
-            <div>Value</div>
-            <input
-              id="value"
-              type="number"
-              min={0}
-              value={value}
-              onChange={(e) => setValue(Number(e.target.value))}
-            />
-          </label>
-
-          {formError && <div style={{ color: "crimson" }}>{formError}</div>}
-
-          <div style={{ display: "flex", gap: 8 }}>
-            <button type="submit">{editing ? "Save" : "Create"}</button>
-            {editing && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditing(null);
-                  setName("");
-                  setValue(0);
-                }}
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-        </form>
+        <EmployeesForm
+          key={editing ? editing.id : "new"}
+          initialValues={editing ?? undefined}
+          onSubmit={handleSave}
+          onCancel={() => setEditing(null)}
+        />
 
         <div>
-          <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+          <div
+            className="card card--summary"
+            style={{
+              padding: 16,
+              marginBottom: 16,
+              backgroundColor: "#f9f9f9",
+              borderRadius: 6,
+            }}
+          >
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "center",
+                color: "#555",
+                fontWeight: "600",
               }}
             >
-              <div style={{ color: "#666" }}>
-                Total Value: <strong>{total.toLocaleString()}</strong>
-              </div>
-              <div style={{ color: "#666" }}>
-                Count: <strong>{rows.length}</strong>
-              </div>
+              <span>Total Value:</span>
+              <span>{total.toLocaleString()}</span>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                color: "#555",
+                fontWeight: "600",
+                marginTop: 8,
+              }}
+            >
+              <span>Count:</span>
+              <span>{rows.length}</span>
             </div>
           </div>
 
           {loading ? (
-            <div>Loading…</div>
+            <div className="loading">Loading…</div>
           ) : (
             <EmployeesTable
               rows={rows}

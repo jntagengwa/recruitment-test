@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { EmployeeDto } from "../dtos/EmployeeDto";
+import "../styles/metricell.css";
 
 interface Props {
   rows: EmployeeDto[];
@@ -9,12 +10,18 @@ interface Props {
 
 /**
  * EmployeesTable
- * Simple, accessible table with a name filter and row actions.
+ * Metricell-styled table with search, sort, and client-side pagination (no vertical scroll).
  */
 export default function EmployeesTable({ rows, onEdit, onDelete }: Props) {
   const [query, setQuery] = useState("");
   const [sortAsc, setSortAsc] = useState<boolean>(true);
 
+  // Pagination state
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const pageSizes = [10, 25, 50];
+
+  // Filter + sort
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = q
@@ -25,27 +32,41 @@ export default function EmployeesTable({ rows, onEdit, onDelete }: Props) {
     );
   }, [rows, query, sortAsc]);
 
+  // Compute pages
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+  // Keep page within bounds when filters/pageSize change
+  useEffect(() => {
+    setPage((p) => Math.min(Math.max(1, p), totalPages));
+  }, [totalPages]);
+
+  const paged = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+
+  const prev = () => setPage((p) => Math.max(1, p - 1));
+  const next = () => setPage((p) => Math.min(totalPages, p + 1));
+
   return (
     <div className="card" style={{ padding: 12 }}>
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 8,
-        }}
-      >
+      <div className="flex items-center justify-between mb-8 gap-8">
         <h3 style={{ margin: 0 }}>Employees ({rows.length})</h3>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="flex items-center gap-8">
           <input
+            className="input"
             aria-label="Search employees by name"
             placeholder="Search by name"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
           />
           <button
             type="button"
+            className="btn btn--outline"
             onClick={() => setSortAsc((s) => !s)}
             aria-label="Toggle sort order"
           >
@@ -54,101 +75,47 @@ export default function EmployeesTable({ rows, onEdit, onDelete }: Props) {
         </div>
       </div>
 
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <table className="table">
         <thead>
           <tr>
-            <th
-              style={{
-                textAlign: "left",
-                borderBottom: "1px solid #e5e7eb",
-                padding: "6px 4px",
-              }}
-            >
-              ID
-            </th>
-            <th
-              style={{
-                textAlign: "left",
-                borderBottom: "1px solid #e5e7eb",
-                padding: "6px 4px",
-              }}
-            >
-              Name
-            </th>
-            <th
-              style={{
-                textAlign: "right",
-                borderBottom: "1px solid #e5e7eb",
-                padding: "6px 4px",
-              }}
-            >
-              Value
-            </th>
-            <th
-              style={{
-                textAlign: "right",
-                borderBottom: "1px solid #e5e7eb",
-                padding: "6px 4px",
-              }}
-            >
-              Actions
-            </th>
+            <th>ID</th>
+            <th>Name</th>
+            <th className="text-right">Value</th>
+            <th className="text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {filtered.map((r) => (
+          {paged.map((r) => (
             <tr key={r.id}>
-              <td
-                style={{
-                  padding: "8px 4px",
-                  borderBottom: "1px solid #f1f5f9",
-                }}
-              >
-                {r.id}
-              </td>
-              <td
-                style={{
-                  padding: "8px 4px",
-                  borderBottom: "1px solid #f1f5f9",
-                }}
-              >
-                {r.name}
-              </td>
-              <td
-                style={{
-                  padding: "8px 4px",
-                  textAlign: "right",
-                  borderBottom: "1px solid #f1f5f9",
-                }}
-              >
-                {r.value.toLocaleString()}
-              </td>
-              <td
-                style={{
-                  padding: "8px 4px",
-                  textAlign: "right",
-                  borderBottom: "1px solid #f1f5f9",
-                }}
-              >
+              <td>{r.id}</td>
+              <td>{r.name}</td>
+              <td className="text-right">{r.value.toLocaleString()}</td>
+              <td className="text-right">
                 <button
                   type="button"
+                  className="btn btn--outline"
                   onClick={() => onEdit(r)}
                   style={{ marginRight: 8 }}
                 >
                   Edit
                 </button>
-                <button type="button" onClick={() => onDelete(r.id)}>
+                <button
+                  type="button"
+                  className="btn btn--danger"
+                  onClick={() => onDelete(r.id)}
+                >
                   Delete
                 </button>
               </td>
             </tr>
           ))}
 
-          {filtered.length === 0 && (
+          {paged.length === 0 && (
             <tr>
               <td
                 colSpan={4}
-                style={{ padding: 12, textAlign: "center", color: "#6b7280" }}
+                style={{ padding: 12, textAlign: "center" }}
+                className="text-muted"
               >
                 No employees found
               </td>
@@ -156,6 +123,56 @@ export default function EmployeesTable({ rows, onEdit, onDelete }: Props) {
           )}
         </tbody>
       </table>
+
+      {/* Pagination controls */}
+      <div className="flex items-center justify-between mt-8">
+        <div className="text-muted">
+          Showing <strong>{paged.length}</strong> of{" "}
+          <strong>{totalItems}</strong>
+        </div>
+
+        <div className="flex items-center gap-8">
+          <label className="text-muted">
+            Page size
+            <select
+              className="input"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              style={{ width: 90, display: "inline-block", marginLeft: 6 }}
+            >
+              {pageSizes.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="text-muted">
+            Page <strong>{page}</strong> of <strong>{totalPages}</strong>
+          </div>
+
+          <div className="flex items-center gap-8">
+            <button
+              className="btn btn--outline"
+              onClick={prev}
+              disabled={page === 1}
+            >
+              Prev
+            </button>
+            <button
+              className="btn btn--primary"
+              onClick={next}
+              disabled={page === totalPages}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
