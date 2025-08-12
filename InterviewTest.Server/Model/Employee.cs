@@ -1,4 +1,6 @@
-﻿namespace InterviewTest.Server.Model
+﻿using System.ComponentModel.DataAnnotations;
+namespace InterviewTest.Server.Model
+
 {
     public class Employee
     {

@@ -1,137 +1,150 @@
-﻿using InterviewTest.Server.Data;
-using InterviewTest.Server.Model;
+﻿using Microsoft.AspNetCore.Http;
+using System.Net.Mime;
+using InterviewTest.Server.DTOs;
+using InterviewTest.Server.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace InterviewTest.Server.Controllers
 {
+    /// <summary>
+    /// Exposes CRUD operations for employees and a special endpoint to run the bulk
+    /// increment + conditional sum logic required by the interview brief.
+    /// </summary>
+    /// <remarks>
+    /// All endpoints return JSON and are designed to be consumed by the React client.
+    /// </remarks>
     [ApiController]
     [Route("api/[controller]")]
+    [Produces(MediaTypeNames.Application.Json)]
     public class EmployeesController : ControllerBase
     {
         private readonly ILogger<EmployeesController> _logger;
-        private readonly AppDbContext _context;
+        private readonly IEmployeeService _service;
 
-        public EmployeesController(AppDbContext context, ILogger<EmployeesController> logger)
+        /// <summary>
+        /// Creates a new <see cref="EmployeesController"/>.
+        /// </summary>
+        /// <param name="service">Domain service that encapsulates employee data access and business rules.</param>
+        /// <param name="logger">Application logger.</param>
+        public EmployeesController(IEmployeeService service, ILogger<EmployeesController> logger)
         {
-            _context = context;
+            _service = service;
             _logger = logger;
         }
 
-        // GET: api/employees
+        /// <summary>
+        /// Retrieves all employees.
+        /// </summary>
+        /// <returns>A JSON array of employees.</returns>
+        [ProducesResponseType(typeof(IEnumerable<EmployeeDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Employee>>> GetEmployees()
+        public async Task<ActionResult<IEnumerable<EmployeeDto>>> GetEmployees()
         {
-            var employees = await _context.Employees.ToListAsync();
-            _logger.LogInformation("Retrieved {Count} employees", employees.Count);
-            return employees;
+            var dtoList = await _service.GetAllAsync();
+            _logger.LogInformation("Retrieved {Count} employees", dtoList.Count);
+            return Ok(dtoList);
         }
 
-        // GET: api/employees/5
+        /// <summary>
+        /// Retrieves a single employee by identifier.
+        /// </summary>
+        /// <param name="id">Employee identifier.</param>
+        /// <returns>The employee if found.</returns>
+        [ProducesResponseType(typeof(EmployeeDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         [HttpGet("{id}")]
-        public async Task<ActionResult<Employee>> GetEmployee(int id)
+        public async Task<ActionResult<EmployeeDto>> GetEmployee(int id)
         {
-            var employee = await _context.Employees.FindAsync(id);
-            if (employee == null)
+            var dto = await _service.GetByIdAsync(id);
+            if (dto == null)
             {
                 _logger.LogWarning("Employee {Id} not found", id);
                 return NotFound();
             }
 
             _logger.LogInformation("Employee {Id} retrieved successfully", id);
-            return employee;
+            return Ok(dto);
         }
 
-        // POST: api/employees
+        /// <summary>
+        /// Creates a new employee.
+        /// </summary>
+        /// <param name="createDto">The employee payload.</param>
+        /// <returns>The created employee with its generated identifier.</returns>
+        [Consumes(MediaTypeNames.Application.Json)]
+        [ProducesResponseType(typeof(EmployeeDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         [HttpPost]
-        public async Task<ActionResult<Employee>> PostEmployee(Employee employee)
+        public async Task<ActionResult<EmployeeDto>> PostEmployee([FromBody] EmployeeCreateDto createDto)
         {
-            if (string.IsNullOrWhiteSpace(employee.Name))
-                return BadRequest("Name is required.");
+            var created = await _service.CreateAsync(createDto);
+            _logger.LogInformation("Created new employee {Name} with ID {Id}", created.Name, created.Id);
 
-            _context.Employees.Add(employee);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Created new employee {Name} with ID {Id}", employee.Name, employee.Id);
-
-            return CreatedAtAction(nameof(GetEmployee), new { id = employee.Id }, employee);
+            return CreatedAtAction(nameof(GetEmployee), new { id = created.Id }, created);
         }
 
-        // PUT: api/employees/5
+        /// <summary>
+        /// Replaces mutable fields of an existing employee.
+        /// </summary>
+        /// <param name="id">Employee identifier.</param>
+        /// <param name="updateDto">New values for the employee.</param>
+        [Consumes(MediaTypeNames.Application.Json)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutEmployee(int id, Employee employee)
+        public async Task<IActionResult> PutEmployee(int id, [FromBody] EmployeeUpdateDto updateDto)
         {
-            if (id != employee.Id)
-                return BadRequest("ID mismatch.");
-
-            var exists = await _context.Employees.AnyAsync(e => e.Id == id);
-            if (!exists)
+            var updated = await _service.UpdateAsync(id, updateDto);
+            if (!updated)
                 return NotFound();
 
-            _logger.LogInformation("Updating employee {Id}", id);
-
-            _context.Entry(employee).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                _logger.LogError(ex, "Concurrency error while updating employee {Id}", id);
-                return StatusCode(500, "A concurrency error occurred.");
-            }
-
+            _logger.LogInformation("Updated employee {Id}", id);
             return NoContent();
         }
 
-        // DELETE: api/employees/5
+        /// <summary>
+        /// Deletes an employee by identifier.
+        /// </summary>
+        /// <param name="id">Employee identifier.</param>
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteEmployee(int id)
         {
-            var employee = await _context.Employees.FindAsync(id);
-            if (employee == null)
+            var deleted = await _service.DeleteAsync(id);
+            if (!deleted)
             {
                 _logger.LogWarning("Attempted to delete non-existent employee {Id}", id);
                 return NotFound();
             }
 
-            _context.Employees.Remove(employee);
-            await _context.SaveChangesAsync();
-
             _logger.LogInformation("Deleted employee {Id}", id);
-
             return NoContent();
         }
+        /// <summary>
+        /// Applies the bulk increment rule (E: +1, G: +10, others: +100) and returns
+        /// the sum of values for names starting with A/B/C when the total is ≥ 11171.
+        /// </summary>
+        /// <returns>HTTP 200 with the sum payload when the threshold is met; otherwise 204.</returns>
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         [HttpPost("update-values-and-sum")]
         public async Task<ActionResult<object>> UpdateValuesAndReturnFilteredSum()
         {
-            // Bulk update Values based on first letter of Name
-            await _context.Database.ExecuteSqlRawAsync(@"
-                UPDATE Employees
-                SET Value = 
-                    CASE
-                        WHEN Name LIKE 'E%' THEN Value + 1
-                        WHEN Name LIKE 'G%' THEN Value + 10
-                        ELSE Value + 100
-                    END
-            ");
+            var total = await _service.IncrementValuesAndGetAbcSumAsync();
+            _logger.LogInformation("Performed bulk update and sum. Result total: {Total}", total ?? 0);
 
-            // Calculate the grouped sum for names starting with A/B/C
-            var result = await _context.Employees
-                .Where(e => EF.Functions.Like(e.Name, "A%") ||
-                            EF.Functions.Like(e.Name, "B%") ||
-                            EF.Functions.Like(e.Name, "C%"))
-                .GroupBy(e => 1)
-                .Select(g => new { Total = g.Sum(e => e.Value) })
-                .FirstOrDefaultAsync();
-
-            _logger.LogInformation("Performed bulk update and sum. Result total: {Total}", result?.Total ?? 0);
-
-            if (result == null || result.Total < 11171)
+            if (!total.HasValue)
                 return NoContent();
 
-            return Ok(new { SumOfABC = result.Total });
+            return Ok(new { SumOfABC = total.Value });
         }
     }
 }
